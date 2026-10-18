@@ -1,0 +1,13 @@
+# 构建目录及中间文件
+build/
+cmake-build-*/
+*.o
+*.a
+*.so
+*.out
+
+# 之前练习生成的程序
+/Search/BstTree
+/Search/hello
+/Multi_io/main
+/01_basics/hello
