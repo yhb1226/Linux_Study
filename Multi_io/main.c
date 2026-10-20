@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <poll.h>
 
 int main(void)
 {
@@ -26,10 +27,10 @@ int main(void)
         return -1;
     }
 
-    listen(sock_fd, 10);
+    listen(sock_fd, 10); // 监听有没有客户端申请连接
 
 // select多客户端
-#if 1
+#if 0
 
     fd_set rfds, rset;
 
@@ -90,6 +91,31 @@ int main(void)
 
 // poll多客户端
 #else
+    struct pollfd fds[100] = {0};
+    fds[sock_fd].fd = sock_fd;    // 把fds数组的第sock_fd位置装着sock_fd的编号
+    fds[sock_fd].events = POLLIN; // 只读
+
+    int maxfd = sock_fd;
+
+    while (1)
+    {
+
+        int nready = poll(fds, maxfd + 1, -1); // 阻塞一直等待有新事件到来(遍历 fds 里每个 fd，检查它现在有没有事件)
+
+        if (fds[sock_fd].revents & POLLIN) // 监听 socket 可读 = 有新连接
+        {
+            typedef struct sockaddr_in ClientAddr;
+            ClientAddr clientaddr;
+
+            socklen_t len = sizeof(clientaddr);
+            int client_fd = accept(sock_fd, (struct sockaddr *)&clientaddr, &len); // 取出一个已经建立的连接，返回新的通信fd
+            printf("Client:%d", client_fd);
+
+            fds[client_fd].fd = client_fd;
+            fds[client_fd].events = POLLIN;
+            maxfd = client_fd;
+        }
+    }
 
 #endif
 
