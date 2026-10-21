@@ -96,6 +96,7 @@ int main(void)
     fds[sock_fd].events = POLLIN; // 只读
 
     int maxfd = sock_fd;
+    printf("ready\n");
 
     while (1)
     {
@@ -114,6 +115,26 @@ int main(void)
             fds[client_fd].fd = client_fd;
             fds[client_fd].events = POLLIN;
             maxfd = client_fd;
+        }
+
+        for (int i = sock_fd + 1; i <= maxfd; i++)
+        {
+            if (fds[i].revents & POLLIN)
+            {
+                char buffer[128] = {0};
+                int count = recv(i, buffer, sizeof(buffer), 0);
+                if (count == 0)
+                {
+                    printf("disconnect\n");
+
+                    fds[i].events = -1;
+                    fds[i].fd = 0;
+                    close(i);
+                }
+
+                send(i, buffer, sizeof(buffer), 0);
+                printf("client:%d,count:%d,buffer:%s\n", i, count, buffer);
+            }
         }
     }
 

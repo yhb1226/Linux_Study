@@ -1,52 +1,41 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <netinet/in.h>
-#include <errno.h>
-#include <sys/socket.h>
 #include <string.h>
+#include <errno.h>
+
 #include <unistd.h>
-/*
-    1.代码出现大量time_wait原因
-    2.多个客户端连接同一个服务端
-*/
-int main()
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <poll.h>
+
+int main(void)
 {
+    // 网络基本配置
+    int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
 
-    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    typedef struct sockaddr_in SockAddrIn;
+    SockAddrIn severaddr;
+    memset(&severaddr, 0, sizeof(severaddr));
 
-    struct sockaddr_in serveraddr;
-    memset(&serveraddr, 0, sizeof(struct sockaddr_in));
-    serveraddr.sin_family = AF_INET;
-    serveraddr.sin_port = htons(2048);
-    serveraddr.sin_addr.s_addr = htonl(INADDR_ANY);
+    severaddr.sin_family = AF_INET;
+    severaddr.sin_port = htons(2049);
+    severaddr.sin_addr.s_addr = htonl(INADDR_ANY);
 
-    if (-1 == bind(sockfd, (struct sockaddr *)&serveraddr, sizeof(struct sockaddr)))
+    if (bind(sock_fd, (struct sockaddr *)&severaddr, sizeof(severaddr)) == -1)
     {
         perror("bind");
         return -1;
     }
 
-    listen(sockfd, 10); // 等待客户端连接，设置连接个数缓冲区
+    listen(sock_fd, 10); // 监听有没有客户端申请连接
 
-    struct sockaddr_in clientaddr; // 接收客户端的信息
-    socklen_t len = sizeof(clientaddr);
-    int clientfd = accept(sockfd, (struct sockaddr *)&clientaddr, &len);
-    printf("accept\n");
+    typedef struct sockaddr_in ClientAddr;
+    ClientAddr clientaddr;
+    socklen_t len;
+    int clinet_fd = accept(sock_fd, (struct sockaddr *)&clientaddr, &len);
 
-#if 1
-    char buffer[128] = {0};                     // 接收客户端发送来的数据和完整发回去
-    int count = recv(clientfd, buffer, 128, 0); // recv显示0时候是显示客户端已经关闭
-    send(clientfd, buffer, count, 0);
-    printf("sockfd: %d, clientfd: %d, count: %d, buffer: %s\n", sockfd, clientfd, count, buffer);
-#else
-    while (1)
-    {
-        char buffer[128] = {0};
-        int count = recv(clientfd, buffer, 128, 0);
-        send(clientfd, buffer, count, 0);
-        printf("sockfd: %d, clientfd: %d, count: %d, buffer: %s\n", sockfd, clientfd, count, buffer);
-    }
-#endif
-    getchar();
-    close(clientfd); // close()放到getchar前后有什么区别
+    char buffer[128] = {0};
+    int count = recv(clinet_fd, buffer, sizeof(buffer), 0);
+
+    send(clinet_fd, buffer, sizeof(buffer), 0);
 }
