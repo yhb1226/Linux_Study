@@ -6,12 +6,13 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <poll.h>
+#include <sys/poll.h>
+#include <sys/epoll.h>
 
 int main(void)
 {
     // 网络基本配置
-    int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
+    int sock_fd = socket(AF_INET, SOCK_STREAM, 0); // sock_fd不变
 
     typedef struct sockaddr_in SockAddrIn;
     SockAddrIn severaddr;
@@ -90,7 +91,7 @@ int main(void)
     }
 
 // poll多客户端
-#else
+#elif 0
     struct pollfd fds[100] = {0};
     fds[sock_fd].fd = sock_fd;    // 把fds数组的第sock_fd位置装着sock_fd的编号
     fds[sock_fd].events = POLLIN; // 只读
@@ -138,7 +139,57 @@ int main(void)
         }
     }
 
+// 为什么client是从5开始的，难道不是应该从4开始吗
+#else
+    int epfd = epoll_create(1);
+
+    typedef struct epoll_event EV;
+    EV ev;
+
+    ev.data.fd = sock_fd;
+    ev.events = POLLIN; // 事件选择可读事件
+
+    epoll_ctl(epfd, EPOLL_CTL_ADD, sock_fd, &ev);
+    struct epoll_event events[1024] = {0}; // 所有客户端总共一起最多处理1024个事件
+
+    printf("ready accept\n");
+    while (1)
+    {
+        int nepoll = epoll_wait(epfd, events, 1024, -1); // 等待事件到来
+
+        for (int i = 0; i < nepoll; i++)
+        {
+            if (events[i].data.fd == sock_fd) // 首先判断是否有新客户端加入进来
+            {
+                typedef struct sockaddr_in ClientAddr;
+                ClientAddr clientaddr;
+                socklen_t len;
+
+                int client_fd = accept(sock_fd, (struct sockaddr *)&clientaddr, &len);
+
+                ev.data.fd = client_fd;
+                ev.events = EPOLLIN;
+
+                epoll_ctl(epfd, EPOLL_CTL_ADD, client_fd, &ev);
+            }
+            else if (events[i].events & EPOLLIN)
+            {
+                char buffer[128] = {0};
+                int count = recv(events[i].data.fd, buffer, sizeof(buffer), 0);
+                if (count == 0) // 没有接收到数据的情况，为什么以前说是客户端关闭的情况呢
+                {
+                    printf("disconnect\n");
+                    epoll_ctl(epfd, EPOLL_CTL_DEL, events[i].data.fd, NULL); // 第四个参数是什么，为什么和上面传输的第四个参数不一样
+                    close(i);                                                // 为什么此处还需要关闭i，这个地方的i占据了什么位置
+                    continue;
+                }
+                send(events[i].data.fd, buffer, sizeof(buffer), 0);
+                printf("client:%d,count:%d,buffer:%s\n", events[i].data.fd, count, buffer);
+            }
+        }
+    }
+
 #endif
 
-    return 0;
+    getchar(); // 最后放的getchar有什么作用
 }
