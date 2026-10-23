@@ -128,9 +128,9 @@ int main(void)
                 {
                     printf("disconnect\n");
 
-                    fds[i].events = -1;
-                    fds[i].fd = 0;
-                    close(i);
+                    fds[i].fd = -1;    // 移除断开连接的客户端fd
+                    fds[i].events = 0; // 清空事件
+                    close(i);          // 防止内存泄露
                 }
 
                 send(i, buffer, sizeof(buffer), 0);
@@ -139,6 +139,7 @@ int main(void)
         }
     }
 
+    */
 // 为什么client是从5开始的，难道不是应该从4开始吗
 #else
     int epfd = epoll_create(1);
@@ -168,19 +169,19 @@ int main(void)
                 int client_fd = accept(sock_fd, (struct sockaddr *)&clientaddr, &len);
 
                 ev.data.fd = client_fd;
-                ev.events = EPOLLIN;
+                ev.events = EPOLLIN | EPOLLET;
 
                 epoll_ctl(epfd, EPOLL_CTL_ADD, client_fd, &ev);
             }
             else if (events[i].events & EPOLLIN)
             {
-                char buffer[128] = {0};
+                char buffer[10] = {0};
                 int count = recv(events[i].data.fd, buffer, sizeof(buffer), 0);
-                if (count == 0) // 没有接收到数据的情况，为什么以前说是客户端关闭的情况呢
+                if (count == 0)
                 {
                     printf("disconnect\n");
                     epoll_ctl(epfd, EPOLL_CTL_DEL, events[i].data.fd, NULL); // 第四个参数是什么，为什么和上面传输的第四个参数不一样
-                    close(i);                                                // 为什么此处还需要关闭i，这个地方的i占据了什么位置
+                    close(events[i].data.fd);                                // 为什么此处还需要关闭i，这个地方的i占据了什么位置
                     continue;
                 }
                 send(events[i].data.fd, buffer, sizeof(buffer), 0);
@@ -191,5 +192,5 @@ int main(void)
 
 #endif
 
-    getchar(); // 最后放的getchar有什么作用
+        getchar();
 }
